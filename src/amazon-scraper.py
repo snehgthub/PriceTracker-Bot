@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import time
 import requests
 from dotenv import load_dotenv
 from termcolor import colored
@@ -13,21 +14,21 @@ class AmazonScraper:
         load_dotenv()
 
         # Load API key from environment variables
-        self.apiKey = os.getenv("APIKEY")
+        self.api_key = os.getenv("APIKEY")
 
         # List of domain names associated with Amazon
-        self.domainNames = ["amazon", "amzn"]
+        self.domain_names = ["amazon", "amzn"]
 
         # URL for the scraper API
-        self.scraperUrl = "https://api.scraperapi.com/structured/amazon/product"
+        self.scraper_url = "https://api.scraperapi.com/structured/amazon/product"
 
-    def getDomain(self, url: str) -> str:
+    def get_domain(self, url: str) -> str:
         try:
             # Extract domain name from URL
-            domainName = url.split("/")[2][::-1].split(".")[1][::-1]
+            domain_name = url.split("/")[2][::-1].split(".")[1][::-1]
 
-            if domainName in self.domainNames:
-                return domainName
+            if domain_name in self.domain_names:
+                return domain_name
             else:
                 raise ValueError("The domain name is not valid.")
 
@@ -38,31 +39,31 @@ class AmazonScraper:
         except Exception as e:
             raise ValueError(f"{e}")
 
-    def extractASIN(self, url: str) -> str:
+    def extract_asin(self, url: str) -> str:
         # Regular expression pattern to extract ASIN from URL
-        asinPattern = r"/([A-Z0-9]{10})(?:[/?]|$)"
+        asin_pattern = r"/([A-Z0-9]{10})(?:[/?]|$)"
 
         # Search for ASIN pattern in URL
-        match = re.search(asinPattern, url)
+        match = re.search(asin_pattern, url)
 
         if match:
             return match.group(1)
         else:
             return None
 
-    def fetchProductASIN(self, url: str, domainName: str) -> str:
-        if domainName == self.domainNames[0]:
+    def fetch_product_asin(self, url: str, domain_name: str) -> str:
+        if domain_name == self.domain_names[0]:
             # If domain is "amazon", directly extract ASIN from URL
-            productASIN = self.extractASIN(url)
+            product_asin = self.extract_asin(url)
 
-        elif domainName == self.domainNames[1]:
+        elif domain_name == self.domain_names[1]:
             # If domain is "amzn", follow redirects to actual Amazon URL and then extract ASIN
             response = requests.get(url, allow_redirects=True)
-            productASIN = self.extractASIN(response.url)
+            product_asin = self.extract_asin(response.url)
 
-        return productASIN
+        return product_asin
 
-    def fetchProductImage(self, imageUrl: str) -> str:
+    def fetch_product_image(self, imageUrl: str) -> str:
         try:
             response = requests.get(imageUrl)
 
@@ -75,28 +76,28 @@ class AmazonScraper:
         except Exception as e:
             print(f"An error occurred while fetching the image: {e}")
 
-    def fetchProductData(self, payload: dict) -> str:
+    def fetch_product_data(self, payload: dict) -> str:
         try:
             # Send request to scraper API with payload
-            response = requests.get(self.scraperUrl, params=payload)
+            response = requests.get(self.scraper_url, params=payload)
             response.raise_for_status()  # Raise HTTPError for status codes 4xx or 5xx
 
             data = json.loads(response.text)
 
-            productName = data.get("name")
-            productPrice = data.get("pricing")
-            productImageUrl = data.get("images")[0]
+            product_name = data.get("name")
+            product_price = data.get("pricing")
+            product_image_url = data.get("images")[0]
 
-            if productName and productPrice and productImageUrl:
+            if product_name and product_price and product_image_url:
                 print(
                     colored("\nProduct Name: ", "yellow")
-                    + colored(f"{productName}", "cyan")
+                    + colored(f"{product_name}", "cyan")
                 )
                 print(
                     colored("Product Price: ", "yellow")
-                    + colored(f"{productPrice}\n", "cyan")
+                    + colored(f"{product_price}\n", "cyan")
                 )
-                self.fetchProductImage(productImageUrl)
+                self.fetch_product_image(product_image_url)
 
             else:
                 print("Incomplete data received from the Scraper API")
@@ -123,24 +124,25 @@ def main():
             colored("\nEnter the URL of the product to track it's price: ", "yellow")
         )
 
+        print(time.strftime("%X"))
         # Determine domain from URL
-        domainName = scraper.getDomain(targetUrl)
+        domain_name = scraper.get_domain(targetUrl)
 
-        if domainName:
+        if domain_name:
             # Fetch ASIN of the product
-            productASIN = scraper.fetchProductASIN(targetUrl, domainName)
+            product_asin = scraper.fetch_product_asin(targetUrl, domain_name)
 
-            if productASIN:
+            if product_asin:
                 # Prepare payload for fetching product data
                 payload = {
-                    "api_key": scraper.apiKey,
-                    "asin": productASIN,
+                    "api_key": scraper.api_key,
+                    "asin": product_asin,
                     "country": "in",
                     "tld": "in",
                     "autoparse": "true",
                 }
                 # Fetch product data using payload
-                scraper.fetchProductData(payload)
+                scraper.fetch_product_data(payload)
             else:
                 print(
                     colored("Error: ", "red") + "Failed to extract ASIN from given URL"
@@ -157,6 +159,7 @@ def main():
     except Exception as e:
         print(colored("Error: ", "red") + f"{e}")
 
+    print(time.strftime("%X"))
 
 # Entry point of the script
 if __name__ == "__main__":
